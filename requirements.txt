@@ -1,0 +1,8 @@
+kafka-python
+pyspark
+fastapi
+uvicorn
+pandas
+scikit-learn
+prometheus-client
+requests
