@@ -1,26 +1,33 @@
 import json
-import pandas as pd
 from kafka import KafkaConsumer
+import pandas as pd
+import os
 
+# 1. Klasörü kontrol et
+if not os.path.exists('data'):
+    os.makedirs('data')
+
+# 2. Kafka Consumer kurulumu
 consumer = KafkaConsumer(
     'sensor-data',
     bootstrap_servers=['localhost:9092'],
-    value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-    auto_offset_reset='earliest'
+    auto_offset_reset='earliest',
+    value_deserializer=lambda x: json.loads(x.decode('utf-8'))
 )
 
 data_list = []
-print("Starting sensor data collection...")
-try:
-     for message in consumer:
-          data_list.append(message.value)
-          if len(data_list) % 10 == 0:
-               print(f"Collected {len(data_list)} messages")
+print(">>> Veri toplanıyor... (Durdurmak için Ctrl+C)")
 
-          if len(data_list) >= 100:
-               df = pd.DataFrame(data_list)
-               df.to_csv('../../data/raw_sensor_data.csv', index =False)
-               print("Saved 100 messages to raw_sensor_data.csv")
-               break
+try:
+    for message in consumer:
+        data_list.append(message.value)
+        # Her 100 veride bir dosyayı güncelle
+        if len(data_list) % 100 == 0:
+            df = pd.DataFrame(data_list)
+            df.to_csv('data/raw_sensor_data.csv', index=False)
+            print(f">>> {len(data_list)} veri kaydedildi.")
 except KeyboardInterrupt:
-     print("Stopping sensor data collection...")          
+    # Programı kapattığında son kalanları da kaydet
+    df = pd.DataFrame(data_list)
+    df.to_csv('data/raw_sensor_data.csv', index=False)
+    print(">>> Toplama işlemi tamamlandı.")
