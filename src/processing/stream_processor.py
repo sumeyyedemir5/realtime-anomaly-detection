@@ -5,8 +5,32 @@ import joblib
 import os
 import sqlite3
 import pandas as pd
+from src.models.train import retrain_model
 
-# 1. Veritabanı Kurulumu
+RETRAIN_THRESHOLD = 5000  
+last_retrain_count = 0
+
+def check_and_retrain():
+    global model, processed_count
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM detection_results")
+    row_count = cursor.fetchone()[0]
+    conn.close()
+
+    # Eğer veritabanında 1000'den fazla veri varsa ve 
+    # son eğitimden bu yana 500 yeni veri birikmişse 
+    if row_count >= 1000 and row_count % 500 == 0:
+        print(f"\n>>> [MLOps] Yeniden eğitim tetiklendi. Mevcut veri: {row_count}")
+        
+        retrain_model() 
+        
+        model = joblib.load(model_path)
+        print(">>> [MLOps] Yeni model belleğe yüklendi. Analiz devam ediyor...\n")
+
+
+#  Veritabanı Kurulumu
 
 DB_PATH = os.path.join('data', 'anomalies.db')
 if not os.path.exists('data'):
@@ -31,11 +55,11 @@ def init_db():
 
 init_db()
 
-# 2. Model Yükleme
+#  Model Yükleme
 model_path = os.path.join('src', 'models', 'anomaly_model.pkl')
 model = joblib.load(model_path)
 
-# 3. Kafka Consumer Kurulumu
+#  Kafka Consumer Kurulumu
 consumer = KafkaConsumer(
     'sensor-data',
     bootstrap_servers=['localhost:9092'],
@@ -46,12 +70,13 @@ consumer = KafkaConsumer(
 )
 
 print(f">>> Canlı Analiz Başladı , Sonuçlar {DB_PATH} dosyasına kaydediliyor......")
-
-# 3. Gerçek Zamanlı Tahmin Döngüsü
+processed_count = 0
+#  Gerçek Zamanlı Tahmin Döngüsü
 try:
     for message in consumer:
         data = message.value
-        
+        processed_count += 1
+
         # Veriyi modelin beklediği formata getir
         features = pd.DataFrame([{
             'temperature': data['temperature'],
@@ -62,7 +87,7 @@ try:
         prediction = model.predict(features)[0]
         status = "⚠️ ANOMALİ" if prediction == -1 else "✅ NORMAL"
 
-        # 4. Sonuçları Veritabanına Kaydet
+        #  Sonuçları Veritabanına Kaydet
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute('''
@@ -75,5 +100,7 @@ try:
         conn.close()
 
         print(f"[{data['sensor_id']}] Durum: {status} (Veritabanına işlendi)")
+        if processed_count % 100 == 0:
+            check_and_retrain()
 except KeyboardInterrupt:
     print(">>> Analiz durduruldu.")

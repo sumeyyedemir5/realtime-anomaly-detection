@@ -1,7 +1,29 @@
+import sqlite3
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 import joblib
 import os
+
+def retrain_model():
+    # 1. Güncel veriyi SQLite'den çek
+    DB_PATH = os.path.join('data', 'anomalies.db')
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT temperature, pressure FROM detection_results", conn)
+    conn.close()
+
+    if len(df) <1000: return  # Yeterli veri yoksa çık
+
+    # 2. Modeli yeniden eğit
+    new_model = IsolationForest(contamination=0.05, random_state=42)
+    new_model.fit(df[['temperature', 'pressure']])
+
+    # 3. Yeni modeli kaydet
+    joblib.dump(new_model, os.path.join('src', 'models', 'anomaly_model.pkl'))
+    print(">>> Model başarıyla yeniden eğitildi ve kaydedildi!")
+
+
+
+
 
 def train_model():
     # 1. Veri yolunu belirle

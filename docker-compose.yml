@@ -49,3 +49,5 @@ services:
       - "3000:3000"
     depends_on:
       - prometheus
+    volumes:
+      - ./data:/var/lib/grafana/data_mount
