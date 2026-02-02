@@ -1,8 +1,9 @@
 kafka-python
-pyspark
-fastapi
-uvicorn
 pandas
 scikit-learn
+joblib
+sqlite3  
+fastapi
+uvicorn
 prometheus-client
 requests
